@@ -27,6 +27,7 @@ jar {
 
 task fatjar(type: Jar) {
     archiveClassifier = "fatjar"
+    archiveVersion = ""
     manifest = jar.manifest
     with jar
 }
