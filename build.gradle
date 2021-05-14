@@ -1,0 +1,69 @@
+plugins {
+    id 'java'
+    id 'scala'
+    id 'application'
+    id 'maven-publish'
+}
+        
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile ('org.scala-lang:scala-library') { version { strictly '[2.13.1,2.14)';  prefer '2.13.1' } }
+    compile ('org.scala-lang.modules:scala-parser-combinators_2.13.0-RC3') { version { strictly '[1.1.2,)';  prefer '1.1.2' } }
+    compile ('org.apache.commons:commons-text') { version { strictly '[1.9,)';  prefer '1.9' } }
+    compile ('com.google.code.gson:gson') { version { strictly '[2.8.6,)';  prefer '2.8.6' } }
+}
+
+application.mainClassName = 'io.github.noeppi_noeppi.mappings.Main'
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+jar {
+    manifest {
+        attributes 'Main-Class': application.mainClassName
+    }
+}
+
+task fatjar(type: Jar) {
+    archiveClassifier = "fatjar"
+    manifest = jar.manifest
+    with jar
+}
+build.dependsOn fatjar
+
+task configureFatJar {
+    doLast {
+        configurations.compileClasspath.each { dep ->
+            fatjar.from(project.zipTree(dep)) {
+                exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+                duplicatesStrategy DuplicatesStrategy.INCLUDE
+            }
+        }
+    }
+}
+fatjar.dependsOn configureFatJar
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+            pom {
+                licenses {
+                    license {
+                        name = "The Apache License, Version 2.0"
+                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            url '../MappingUtilities'
+        }
+    }
+}
