@@ -1,6 +1,6 @@
 package io.github.noeppi_noeppi.mappings.mappings
 
-import io.github.noeppi_noeppi.mappings.util.{ClassEntry, NamedConstructor, NamedField, NamedMethod, Side, TypeEntry}
+import io.github.noeppi_noeppi.mappings.util.{NamedField, Side}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -51,8 +51,8 @@ object MappingMerger {
     new Mapping[T](map.toMap)
   }
   
-  def mergeUnique(mappings: Seq[Map[String, (String, Side)]]): Map[String, (String, Side)] = {
-    val map = mutable.Map[String, (String, Side)]()
+  def mergeUnique(mappings: Seq[Map[String, (String, Side, String)]]): Map[String, (String, Side, String)] = {
+    val map = mutable.Map[String, (String, Side, String)]()
     for (m <- mappings; entry <- m) {
       if (!map.contains(entry._1)) {
         map.put(entry._1, entry._2)
@@ -60,16 +60,17 @@ object MappingMerger {
         val oldElem = map(entry._1)
         val newElem = entry._2
         val newSide = Side.merge(oldElem._2, newElem._2)
-        if (newSide != oldElem._2) {
-          map.put(entry._1, (oldElem._1, newSide))
+        val newDoc = if (oldElem._3.isEmpty && newElem._3.nonEmpty) { newElem._3 } else { oldElem._3 }
+        if (newSide != oldElem._2 || oldElem._3 != newDoc) {
+          map.put(entry._1, (oldElem._1, newSide, newDoc))
         }
       }
     }
     map.toMap
   }
   
-  def mergeUniqueParam(mappings: Seq[Map[String, (String, Map[Int, String], Side)]]): Map[String, (String, Map[Int, String], Side)] = {
-    val map = mutable.Map[String, (String, Map[Int, String], Side)]()
+  def mergeUniqueParam(mappings: Seq[Map[String, (String, Map[Int, String], Side, String)]]): Map[String, (String, Map[Int, String], Side, String)] = {
+    val map = mutable.Map[String, (String, Map[Int, String], Side, String)]()
     for (m <- mappings; entry <- m) {
       if (!map.contains(entry._1)) {
         map.put(entry._1, entry._2)
@@ -82,7 +83,8 @@ object MappingMerger {
         for (entry <- oldElem._2) {
           newMap = newMap.updated(entry._1, entry._2)
         }
-        map.put(entry._1, (oldElem._1, newMap, newSide))
+        val newDoc = if (oldElem._4.isEmpty && newElem._4.nonEmpty) { newElem._4 } else { oldElem._4 }
+        map.put(entry._1, (oldElem._1, newMap, newSide, newDoc))
       }
     }
     map.toMap

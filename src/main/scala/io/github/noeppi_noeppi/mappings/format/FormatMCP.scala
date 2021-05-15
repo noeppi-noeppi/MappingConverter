@@ -2,6 +2,7 @@ package io.github.noeppi_noeppi.mappings.format
 
 import io.github.noeppi_noeppi.mappings.mappings._
 import io.github.noeppi_noeppi.mappings.util.{Side, Unknown}
+import org.apache.commons.text.StringEscapeUtils
 
 import java.io._
 import java.util.zip.{ZipEntry, ZipInputStream, ZipOutputStream}
@@ -12,8 +13,8 @@ object FormatMCP extends MappingFormat {
   override def required: Set[Names] = Set(SRG, Mapped)
 
   override def read(in: InputStream): Mappings = {
-    var fields: Map[String, (String, Side)] = null
-    var methods: Map[String, (String, Side)] = null
+    var fields: Map[String, (String, Side, String)] = null
+    var methods: Map[String, (String, Side, String)] = null
     var params: Map[(Int, Int), String] = Map()
     var cparams: Map[(Int, Int), (String, Side)] = Map()
     val zip = new ZipInputStream(in)
@@ -38,17 +39,17 @@ object FormatMCP extends MappingFormat {
     if (methods == null) throw new IllegalStateException("MCP mappings ZIP is missing required 'methods.csv'")
     val builder = new MappingBuilder(SRG, Mapped)
     for (entry <- fields) {
-      builder.uniqueF(entry._1, entry._2._1, entry._2._2)
+      builder.uniqueF(entry._1, entry._2._1, entry._2._2, entry._2._3)
     }
     val pmap: Map[Int, Map[Int, String]] = params.groupBy(entry => entry._1._1).map(entry => entry._1 -> entry._2.map(x => (x._1._2, x._2)))
     for (entry <- methods) {
       val id = methodId(entry._1)
-      builder.uniqueM(entry._1, entry._2._1, pmap.getOrElse(id, Map()), entry._2._2)
+      builder.uniqueM(entry._1, entry._2._1, pmap.getOrElse(id, Map()), entry._2._2, entry._2._3)
     }
     cparams.groupBy(entry => entry._1._1).foreach(entry => {
       val pmap = entry._2.map(entry => (entry._1._2, entry._2._1))
       val side = entry._2.map(entry => entry._2._2).fold(Unknown)(Side.join)
-      builder.uniqueC(entry._1.toString, entry._1.toString, pmap, side)
+      builder.uniqueC(entry._1.toString, entry._1.toString, pmap, side, "")
     })
     builder.build()
   }
@@ -58,15 +59,15 @@ object FormatMCP extends MappingFormat {
     case _ => -1
   }
 
-  private def parseFM(in: BufferedReader, fname: String): Map[String, (String, Side)] = {
+  private def parseFM(in: BufferedReader, fname: String): Map[String, (String, Side, String)] = {
     // Skip header
     in.readLine()
     val lines = in.lines().toArray.map(_.toString)
-    val map = mutable.Map[String, (String, Side)]()
+    val map = mutable.Map[String, (String, Side, String)]()
     for (line <- lines if line.trim.nonEmpty) {
-      val tokens = line.split(",").map(_.trim)
+      val tokens = line.split(",")
       if (tokens.length < 2) throw new IllegalStateException("Invalid mapping in '" + fname + "': '" + line + "'")
-      map.put(tokens(0), (tokens(1), if (tokens.length >= 3) Side.byMcpIdx(tokens(2)) else Unknown))
+      map.put(tokens(0).trim, (tokens(1).trim, if  (tokens.length >= 3) { Side.byMcpIdx(tokens(2).trim) } else { Unknown }, if (tokens.length >= 4) unquote(tokens.slice(3, tokens.length).mkString(",")) else ""))
     }
     map.toMap
   }
@@ -116,22 +117,22 @@ object FormatMCP extends MappingFormat {
   }
   
   override def write(out: OutputStream, mappings: Mappings): Unit = {
-    val fields = mutable.Map[String, (String, Side)]()
-    val methods = mutable.Map[String, (String, Side)]()
+    val fields = mutable.Map[String, (String, Side, String)]()
+    val methods = mutable.Map[String, (String, Side, String)]()
     val params = mutable.Map[String, (String, Side)]()
     var skipParam = false
     for (entry <- mappings.fieldMappings) {
       val k = entry.name(SRG)
       val v = entry.name(Mapped)
       if (k.name.startsWith("field_")) {
-        fields.put(k.name, (v.name, k.side))
+        fields.put(k.name, (v.name, k.side, v.javadoc))
       }
     }
     for (entry <- mappings.methodMappings) {
       val k = entry.name(SRG)
       val v = entry.name(Mapped)
       if (k.name.startsWith("func_")) {
-        methods.put(k.name, (v.name, k.side))
+        methods.put(k.name, (v.name, k.side, v.javadoc))
       }
       for (idx <- k.params.indices) {
         val pk = k.params(idx)
@@ -166,7 +167,7 @@ object FormatMCP extends MappingFormat {
     }
     for (entry <- mappings.uniqueMethodNames) {
       if (!methods.contains(entry._1)) {
-        methods.put(entry._1, (entry._2._1, entry._2._3))
+        methods.put(entry._1, (entry._2._1, entry._2._3, entry._2._4))
       }
       entry._1 match {
         case SrgUtil.FUNC_REGEX(id) =>
@@ -195,17 +196,17 @@ object FormatMCP extends MappingFormat {
     val zout = new ZipOutputStream(bout)
     zout.putNextEntry(new ZipEntry("fields.csv"))
     val fw = new BufferedWriter(new OutputStreamWriter(zout))
-    fw.write("searge,name,side\n")
+    fw.write("searge,name,side,desc\n")
     for (entry <- fields) {
-      fw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "\n")
+      fw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "," + quote(entry._2._3) + "\n")
     }
     fw.flush()
     zout.closeEntry()
     zout.putNextEntry(new ZipEntry("methods.csv"))
     val mw = new BufferedWriter(new OutputStreamWriter(zout))
-    mw.write("searge,name,side\n")
+    mw.write("searge,name,side,desc\n")
     for (entry <- methods) {
-      mw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "\n")
+      mw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "," + quote(entry._2._3) + "\n")
     }
     mw.flush()
     zout.closeEntry()
@@ -221,5 +222,21 @@ object FormatMCP extends MappingFormat {
     }
     zout.close()
     out.write(bout.toByteArray)
+  }
+  
+  private def unquote(str: String): String = {
+    if ((str.startsWith("\"") && str.startsWith("\"")) || (str.startsWith("\'") && str.startsWith("\'"))) {
+      StringEscapeUtils.unescapeJava(str.substring(1, str.length - 1))
+    } else {
+      StringEscapeUtils.unescapeJava(str)
+    }
+  }
+  
+  private def quote(str: String): String = {
+    if (str.nonEmpty) {
+      "\"" + StringEscapeUtils.escapeJava(str) + "\""
+    } else {
+      ""
+    }
   }
 }

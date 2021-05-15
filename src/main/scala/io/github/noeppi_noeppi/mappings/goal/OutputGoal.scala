@@ -8,10 +8,11 @@ import java.nio.file.{Files, Path, StandardOpenOption}
 class OutputGoal(goal: Goal, format: MappingFormat, path: Path) extends Goal {
   override def perform(env: MappingEnv): Mappings = {
     val mappings = goal.perform(env)
-    if (!Files.exists(path.getParent)) {
-      Files.createDirectories(path.getParent)
+    val absPath = path.toAbsolutePath.normalize()
+    if (!Files.exists(absPath.getParent)) {
+      Files.createDirectories(absPath.getParent)
     }
-    val out = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+    val out = Files.newOutputStream(absPath, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
     MappingIO.write(format, out, mappings)
     out.close()
     mappings

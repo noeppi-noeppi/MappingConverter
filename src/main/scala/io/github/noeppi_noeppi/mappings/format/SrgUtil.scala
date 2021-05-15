@@ -33,7 +33,7 @@ object SrgUtil {
   
   def mapCtor(builder: PseudoMappingBuilder, cls: ClassEntry, name: String, sig: MethodSignature, side: Side): Unit = {
     val params = paramNames(name, sig, ctor = true)
-    builder.map(NamedConstructor(cls, name, sig, params, side))
+    builder.map(NamedConstructor(cls, name, sig, params, side, ""))
   }
   
   def mapCtorExc(builder: PseudoMappingBuilder, cls: ClassEntry, sig: MethodSignature, params: List[String], side: Side): Unit = {
@@ -43,7 +43,7 @@ object SrgUtil {
     // We take the params given. If not we use classic SRG style named params
     // if we could infer and id.
     if (sig.args.size == params.size) {
-      builder.map(NamedConstructor(cls, id.getOrElse("<init>"), sig, params.map(Some(_)), side))
+      builder.map(NamedConstructor(cls, id.getOrElse("<init>"), sig, params.map(Some(_)), side, ""))
     } else if (id.isDefined) {
       mapCtor(builder, cls, id.get, sig, side)
     }

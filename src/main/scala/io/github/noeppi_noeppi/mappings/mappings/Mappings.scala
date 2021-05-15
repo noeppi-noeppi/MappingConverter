@@ -2,7 +2,6 @@ package io.github.noeppi_noeppi.mappings.mappings
 
 import io.github.noeppi_noeppi.mappings.mappings.MappingMerger.{mergeMappingLists, mergeUnique, mergeUniqueParam}
 import io.github.noeppi_noeppi.mappings.remapper.ClassRemapper
-import io.github.noeppi_noeppi.mappings.util
 import io.github.noeppi_noeppi.mappings.util.{ClassEntry, MethodSignature, NamedConstructor, NamedField, NamedMethod, Side, TypeEntry, Unknown}
 
 import scala.collection.mutable
@@ -13,9 +12,10 @@ class Mappings private (
                          val fieldMappings: List[Mapping[NamedField]],
                          val methodMappings: List[Mapping[NamedMethod]],
                          val constructorMappings: List[Mapping[NamedConstructor]],
-                         val uniqueFieldNames: Map[String, (String, Side)],
-                         val uniqueMethodNames: Map[String, (String, Map[Int, String], Side)],
-                         val uniqueConstructorNames: Map[String, (String, Map[Int, String], Side)]) {
+                         val uniqueFieldNames: Map[String, (String, Side, String)],
+                         val uniqueMethodNames: Map[String, (String, Map[Int, String], Side, String)],
+                         val uniqueConstructorNames: Map[String, (String, Map[Int, String], Side, String)]
+                       ) {
   
   private[this] val remappers = mutable.Map[(Names, Names), ClassRemapper]()
   private[this] val lookupMapC = mutable.Map[Names, Map[ClassEntry, Mapping[ClassEntry]]]()
@@ -45,9 +45,9 @@ class Mappings private (
   def canMap(from: Names, key: NamedConstructor): Boolean = lookupI(from).contains(NamedConstructor.distinct(key)) || uniqueConstructorNames.contains(key.name)
   
   def map(from: Names, to: Names, key: ClassEntry): ClassEntry = lookupC(from).get(TypeEntry.distinct(key)).map(_.name(to)).getOrElse(key)
-  def map(from: Names, to: Names, key: NamedField): NamedField = lookupF(from).get(NamedField.distinct(key)).map(_.name(to)).orElse(uniqueFieldNames.get(key.name).map(n => NamedField(key.cls, n._1, None, Side.merge(key.side, n._2)))).getOrElse(key)
-  def map(from: Names, to: Names, key: NamedMethod): NamedMethod = lookupM(from).get(NamedMethod.distinct(key)).map(_.name(to)).orElse(uniqueMethodNames.get(key.name).map(n => NamedMethod(key.cls, n._1, key.sig.remap(remapper(from, to)), buildParamsByUnique(key.sig, key.params, n._2), Side.merge(key.side, n._3)))).getOrElse(key)
-  def map(from: Names, to: Names, key: NamedConstructor): NamedConstructor = lookupI(from).get(NamedConstructor.distinct(key)).map(_.name(to)).orElse(uniqueConstructorNames.get(key.name).map(n => NamedConstructor(key.cls, n._1, key.sig.remap(remapper(from, to)), buildParamsByUnique(key.sig, key.params, n._2), Side.merge(key.side, n._3)))).getOrElse(key)
+  def map(from: Names, to: Names, key: NamedField): NamedField = lookupF(from).get(NamedField.distinct(key)).map(_.name(to)).orElse(uniqueFieldNames.get(key.name).map(n => NamedField(key.cls, n._1, None, Side.merge(key.side, n._2), n._3))).getOrElse(key)
+  def map(from: Names, to: Names, key: NamedMethod): NamedMethod = lookupM(from).get(NamedMethod.distinct(key)).map(_.name(to)).orElse(uniqueMethodNames.get(key.name).map(n => NamedMethod(key.cls, n._1, key.sig.remap(remapper(from, to)), buildParamsByUnique(key.sig, key.params, n._2), Side.merge(key.side, n._3), n._4))).getOrElse(key)
+  def map(from: Names, to: Names, key: NamedConstructor): NamedConstructor = lookupI(from).get(NamedConstructor.distinct(key)).map(_.name(to)).orElse(uniqueConstructorNames.get(key.name).map(n => NamedConstructor(key.cls, n._1, key.sig.remap(remapper(from, to)), buildParamsByUnique(key.sig, key.params, n._2), Side.merge(key.side, n._3), n._4))).getOrElse(key)
   
   def distinctKeysC(from: Names): Set[ClassEntry] = lookupC(from).keySet
   def distinctKeysF(from: Names): Set[NamedField] = lookupF(from).keySet
@@ -97,17 +97,17 @@ object Mappings {
     new Mappings(Set(names), Nil, Nil, Nil, constructorMappings.toList, Map(), Map(), Map())
   }
   
-  def create(from: Names, to: Names, classes: Map[ClassEntry, ClassEntry], fields: Map[NamedField, String], methods: Map[NamedMethod, (String, List[Option[String]])], constructors: Map[NamedConstructor, (String, List[Option[String]])]): Mappings = {
+  def create(from: Names, to: Names, classes: Map[ClassEntry, ClassEntry], fields: Map[NamedField, (String, String)], methods: Map[NamedMethod, (String, List[Option[String]], String)], constructors: Map[NamedConstructor, (String, List[Option[String]], String)]): Mappings = {
     create(from, to, classes, fields, methods, constructors, Map(), Map(), Map())
   }
   
-  def create(from: Names, to: Names, classes: Map[ClassEntry, ClassEntry], fields: Map[NamedField, String], methods: Map[NamedMethod, (String, List[Option[String]])], constructors: Map[NamedConstructor, (String, List[Option[String]])], uniqueFields: Map[String, (String, Side)], uniqueMethods: Map[String, (String, Map[Int, String], Side)], uniqueConstructors: Map[String, (String, Map[Int, String], Side)]): Mappings = {
+  def create(from: Names, to: Names, classes: Map[ClassEntry, ClassEntry], fields: Map[NamedField, (String, String)], methods: Map[NamedMethod, (String, List[Option[String]], String)], constructors: Map[NamedConstructor, (String, List[Option[String]], String)], uniqueFields: Map[String, (String, Side, String)], uniqueMethods: Map[String, (String, Map[Int, String], Side, String)], uniqueConstructors: Map[String, (String, Map[Int, String], Side, String)]): Mappings = {
     val remapper = new ClassRemapper(classes)
     val names = Set(from, to) 
     val classMappings = classes.map(entry => new Mapping[ClassEntry](Map(from -> entry._1, to -> entry._2)))
-    val fieldMappings = fields.map(entry => new Mapping[NamedField](Map(from -> entry._1, to -> NamedField(remapper.remap(entry._1.cls), entry._2, entry._1.element.map(remapper.remap), entry._1.side))))
-    val methodMappings = methods.map(entry => new Mapping[NamedMethod](Map(from -> entry._1, to -> NamedMethod(remapper.remap(entry._1.cls), entry._2._1, entry._1.sig.remap(remapper), entry._2._2, entry._1.side))))
-    val constructorMappings = constructors.map(entry => new Mapping[NamedConstructor](Map(from -> entry._1, to -> NamedConstructor(remapper.remap(entry._1.cls), entry._2._1, entry._1.sig.remap(remapper), entry._2._2, entry._1.side))))
+    val fieldMappings = fields.map(entry => new Mapping[NamedField](Map(from -> entry._1, to -> NamedField(remapper.remap(entry._1.cls), entry._2._1, entry._1.element.map(remapper.remap), entry._1.side, entry._2._2))))
+    val methodMappings = methods.map(entry => new Mapping[NamedMethod](Map(from -> entry._1, to -> NamedMethod(remapper.remap(entry._1.cls), entry._2._1, entry._1.sig.remap(remapper), entry._2._2, entry._1.side, entry._2._3))))
+    val constructorMappings = constructors.map(entry => new Mapping[NamedConstructor](Map(from -> entry._1, to -> NamedConstructor(remapper.remap(entry._1.cls), entry._2._1, entry._1.sig.remap(remapper), entry._2._2, entry._1.side, entry._2._3))))
     new Mappings(names, classMappings.toList, fieldMappings.toList, methodMappings.toList, constructorMappings.toList, uniqueFields, uniqueMethods, uniqueConstructors)
   }
   
@@ -116,9 +116,9 @@ object Mappings {
     val remapperMap = new ClassRemapper(classes.map(entry => (entry._1, entry._2._2)))
     val names = Set(Obfuscated, SRG, Mapped) 
     val classMappings = classes.map(entry => new Mapping[ClassEntry](Map(Obfuscated -> entry._1, SRG -> entry._2._1, Mapped -> entry._2._2)))
-    val fieldMappings = fields.map(entry => new Mapping[NamedField](Map(Obfuscated -> entry._1, SRG -> NamedField(remapperSrg.remap(entry._1.cls), entry._2._1, entry._1.element.map(remapperSrg.remap), entry._1.side), Mapped -> NamedField(remapperMap.remap(entry._1.cls), entry._2._2, entry._1.element.map(remapperMap.remap), entry._1.side))))
-    val methodMappings = methods.map(entry => new Mapping[NamedMethod](Map(Obfuscated -> entry._1, SRG -> NamedMethod(remapperSrg.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperSrg), entry._2._1._2, entry._1.side), Mapped -> NamedMethod(remapperMap.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperMap), entry._2._1._2, entry._1.side))))
-    val constructorMappings = constructors.map(entry => new Mapping[NamedConstructor](Map(Obfuscated -> entry._1, SRG -> NamedConstructor(remapperSrg.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperSrg), entry._2._1._2, entry._1.side), Mapped -> NamedConstructor(remapperMap.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperMap), entry._2._1._2, entry._1.side))))
+    val fieldMappings = fields.map(entry => new Mapping[NamedField](Map(Obfuscated -> entry._1, SRG -> NamedField(remapperSrg.remap(entry._1.cls), entry._2._1, entry._1.element.map(remapperSrg.remap), entry._1.side, ""), Mapped -> NamedField(remapperMap.remap(entry._1.cls), entry._2._2, entry._1.element.map(remapperMap.remap), entry._1.side, ""))))
+    val methodMappings = methods.map(entry => new Mapping[NamedMethod](Map(Obfuscated -> entry._1, SRG -> NamedMethod(remapperSrg.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperSrg), entry._2._1._2, entry._1.side, ""), Mapped -> NamedMethod(remapperMap.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperMap), entry._2._1._2, entry._1.side, ""))))
+    val constructorMappings = constructors.map(entry => new Mapping[NamedConstructor](Map(Obfuscated -> entry._1, SRG -> NamedConstructor(remapperSrg.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperSrg), entry._2._1._2, entry._1.side, ""), Mapped -> NamedConstructor(remapperMap.remap(entry._1.cls), entry._2._1._1, entry._1.sig.remap(remapperMap), entry._2._1._2, entry._1.side, ""))))
     new Mappings(names, classMappings.toList, fieldMappings.toList, methodMappings.toList, constructorMappings.toList, Map(), Map(), Map())
   }
   
@@ -197,9 +197,9 @@ object Mappings {
     val fieldMappings = mappings.fieldMappings.map(m => m.transform(_.known(side)))
     val methodMappings = mappings.methodMappings.map(m => m.transform(_.known(side)))
     val constructorMappings = mappings.constructorMappings.map(m => m.transform(_.known(side)))
-    val uniqueFieldsNames = mappings.uniqueFieldNames.map(entry => if (entry._2._2 == Unknown) { (entry._1, (entry._2._1, side)) } else { entry })
-    val uniqueMethodNames = mappings.uniqueMethodNames.map(entry => if (entry._2._3 == Unknown) { (entry._1, (entry._2._1, entry._2._2, side)) } else { entry })
-    val uniqueConstructorNames = mappings.uniqueConstructorNames.map(entry => if (entry._2._3 == Unknown) { (entry._1, (entry._2._1, entry._2._2, side)) } else { entry })
+    val uniqueFieldsNames = mappings.uniqueFieldNames.map(entry => if (entry._2._2 == Unknown) { (entry._1, (entry._2._1, side, entry._2._3)) } else { entry })
+    val uniqueMethodNames = mappings.uniqueMethodNames.map(entry => if (entry._2._3 == Unknown) { (entry._1, (entry._2._1, entry._2._2, side, entry._2._4)) } else { entry })
+    val uniqueConstructorNames = mappings.uniqueConstructorNames.map(entry => if (entry._2._3 == Unknown) { (entry._1, (entry._2._1, entry._2._2, side, entry._2._4)) } else { entry })
     new Mappings(names, classMappings, fieldMappings, methodMappings, constructorMappings, uniqueFieldsNames, uniqueMethodNames, uniqueConstructorNames)
   }
   
@@ -209,9 +209,9 @@ object Mappings {
     val fieldMappings = mappings.fieldMappings.map(m => m.transform(_.forceKnown(side)))
     val methodMappings = mappings.methodMappings.map(m => m.transform(_.forceKnown(side)))
     val constructorMappings = mappings.constructorMappings.map(m => m.transform(_.forceKnown(side)))
-    val uniqueFieldsNames = mappings.uniqueFieldNames.map(entry => (entry._1, (entry._2._1, side)))
-    val uniqueMethodNames = mappings.uniqueMethodNames.map(entry => (entry._1, (entry._2._1, entry._2._2, side)))
-    val uniqueConstructorNames = mappings.uniqueConstructorNames.map(entry => (entry._1, (entry._2._1, entry._2._2, side)))
+    val uniqueFieldsNames = mappings.uniqueFieldNames.map(entry => (entry._1, (entry._2._1, side, entry._2._3)))
+    val uniqueMethodNames = mappings.uniqueMethodNames.map(entry => (entry._1, (entry._2._1, entry._2._2, side, entry._2._4)))
+    val uniqueConstructorNames = mappings.uniqueConstructorNames.map(entry => (entry._1, (entry._2._1, entry._2._2, side, entry._2._4)))
     new Mappings(names, classMappings, fieldMappings, methodMappings, constructorMappings, uniqueFieldsNames, uniqueMethodNames, uniqueConstructorNames)
   }
   
@@ -275,8 +275,8 @@ object Mappings {
   def prefix(target: Names, prefix: String, mappings: Mappings): Mappings = {
     val fieldMappings = mappings.fieldMappings.map(_.transform(target, elem => elem.renamed(prefix + elem.name)))
     val methodMappings = mappings.methodMappings.map(_.transform(target, elem => elem.renamed(prefix + elem.name)))
-    val uniqueFields = if (target == Mapped) { mappings.uniqueFieldNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2))) } else { mappings.uniqueFieldNames }
-    val uniqueMethods = if (target == Mapped) { mappings.uniqueMethodNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3))) } else { mappings.uniqueMethodNames }
+    val uniqueFields = if (target == Mapped) { mappings.uniqueFieldNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3))) } else { mappings.uniqueFieldNames }
+    val uniqueMethods = if (target == Mapped) { mappings.uniqueMethodNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3, entry._2._4))) } else { mappings.uniqueMethodNames }
     new Mappings(mappings.names, mappings.classMappings, fieldMappings, methodMappings, mappings.constructorMappings, uniqueFields, uniqueMethods, mappings.uniqueConstructorNames)
   }
   
