@@ -160,7 +160,8 @@ object Mappings {
       throw new IllegalStateException("Can't partially apply mappings together: First mappings are missing deobfuscated names.")
     }
     val names = Set(Obfuscated, SRG, Mapped)
-    val classMappings = srg.classMappings.flatMap(m => if (map.canMap(SRG, m.name(SRG))) { Some(new Mapping[ClassEntry](m.values.updated(Mapped, map.map(SRG, Mapped, m.name(SRG))))) } else { None })
+    // class mappings are not dropped as this breaks things
+    val classMappings = srg.classMappings.map(m => new Mapping[ClassEntry](m.values.updated(Mapped, map.map(SRG, Mapped, m.name(SRG)))))
     val remappers = lazyRemappers(classMappings)
     val fieldMappings = srg.fieldMappings.flatMap(m => if (map.canMap(SRG, m.name(SRG))) { Some(applyField(m, Mapped, map.map(SRG, Mapped, m.name(SRG)), remappers)) } else { None })
     val methodMappings = srg.methodMappings.flatMap(m => if (map.canMap(SRG, m.name(SRG))) { Some(new Mapping[NamedMethod](m.values.updated(Mapped, map.map(SRG, Mapped, m.name(SRG))))) } else { None })
