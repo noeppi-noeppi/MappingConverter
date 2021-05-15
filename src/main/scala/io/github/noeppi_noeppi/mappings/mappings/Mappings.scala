@@ -80,6 +80,7 @@ class Mapping[T](val values: Map[Names, T]) {
   
   private[mappings] def transform(transformations: Map[Names, Option[Names]]): Mapping[T] = new Mapping[T](values.flatMap(entry => transformations.getOrElse(entry._1, Some(entry._1)).map(value => value -> entry._2)))
   def transform(transformer: T => T): Mapping[T] = new Mapping[T](values.map(entry => (entry._1, transformer(entry._2))))
+  def transform(target: Names, transformer: T => T): Mapping[T] = if (values.contains(target)) { new Mapping[T](values.updated(target, transformer(values(target)))) } else { this }
   def testSide(extractor: T => Side, primary: Option[Names], requiresClient: Boolean, requiresServer: Boolean): Boolean = {
     if (primary.isDefined && values.contains(primary.get)) {
       extractor(values(primary.get)).test(requiresClient, requiresServer)
@@ -268,6 +269,14 @@ object Mappings {
     val remappers = lazyRemappers(mappings.classMappings)
     val fieldMappings = mappings.fieldMappings.map(entry => applyFieldType(from, ftypes, entry, remappers))
     new Mappings(mappings.names, mappings.classMappings, fieldMappings, mappings.methodMappings, mappings.constructorMappings, mappings.uniqueFieldNames, mappings.uniqueMethodNames, mappings.uniqueConstructorNames)
+  }
+  
+  def prefix(target: Names, prefix: String, mappings: Mappings): Mappings = {
+    val fieldMappings = mappings.fieldMappings.map(_.transform(target, elem => elem.renamed(prefix + elem.name)))
+    val methodMappings = mappings.methodMappings.map(_.transform(target, elem => elem.renamed(prefix + elem.name)))
+    val uniqueFields = if (target == Mapped) { mappings.uniqueFieldNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2))) } else { mappings.uniqueFieldNames }
+    val uniqueMethods = if (target == Mapped) { mappings.uniqueMethodNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3))) } else { mappings.uniqueMethodNames }
+    new Mappings(mappings.names, mappings.classMappings, fieldMappings, methodMappings, mappings.constructorMappings, uniqueFields, uniqueMethods, mappings.uniqueConstructorNames)
   }
   
   private def applyFieldType(from: Names, ftypes: Mappings, m: Mapping[NamedField], remappers: (Names, Names) => ClassRemapper): Mapping[NamedField] = {

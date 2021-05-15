@@ -10,13 +10,13 @@ import java.nio.file.{Path, Paths}
 
 object GoalParsers extends CommonParsers {
 
-  private val PATH_REGEX = """[A-Za-z0-9/\\.$]+""".r
+  private val PATH_REGEX = """[A-Za-z0-9/\\._$\-]+""".r
   
   def stmt: GoalParsers.Parser[(Goal, String)] = stmt_assign | stmt_noassign
   def stmt_assign: Parser[(Goal, String)] = ident ~ "=" ~ goal ^^ { case vname ~ _ ~ goal => (goal, vname) }
   def stmt_noassign: Parser[(Goal, String)] = goal ^^ (x => (x, null))
   
-  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_p_mcpp | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
+  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_prefix | goal_p_mcpp | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
   def goal_output: Parser[Goal] = "write" ~> "(" ~> goal ~ "," ~ format ~ "," ~ path <~ ")" ^^ { case goal ~ _ ~ format ~ _ ~ path => new OutputGoal(goal, format, path) }
   def goal_input: Parser[Goal] = "read" ~> "(" ~> format ~ "," ~ path <~ ")" ^^ { case format ~ _ ~ path => new ProviderGoalFile(format, path) }
   def goal_var: Parser[Goal] = ident ^^ (x => new ProviderGoalVar(x))
@@ -42,6 +42,7 @@ object GoalParsers extends CommonParsers {
   def goal_filter: Parser[Goal] = ("filter_sided" | "filter") ~> "(" ~> goal ~ "," ~ bool ~ "," ~ bool <~ ")" ^^ { case goal ~ _ ~ client ~ _ ~ server => new FilterGoal(client, server, goal) }
   def goal_ctor: Parser[Goal] = ("contructor_apply" | "ctor_apply" | "ctor") ~> "(" ~> names ~ "," ~ goal ~ "," ~ goal <~ ")" ^^ { case common ~ _ ~ mappings ~ _ ~ ctors => new ConstructorGoal(common, mappings, ctors) }
   def goal_ftypes: Parser[Goal] = ("field_types_apply" | "ftypes_apply" | "ftypes") ~> "(" ~> names ~ "," ~ goal ~ "," ~ goal <~ ")" ^^ { case common ~ _ ~ mappings ~ _ ~ ftypes => new FieldTypeGoal(common, mappings, ftypes) }
+  def goal_prefix: Parser[Goal] = "prefix" ~> "(" ~> names ~ "," ~ c_string ~ "," ~ goal <~ ")" ^^ { case target ~ _ ~ prefix ~ _ ~ goal => new PrefixGoal(target, prefix, goal) }
   
   def bool: GoalParsers.Parser[Boolean] = ("true" | "false") ^^ (x => x.toBoolean)
   
@@ -60,6 +61,8 @@ object GoalParsers extends CommonParsers {
   def path: GoalParsers.Parser[Path] = path_str | path_simple
   def path_simple: Parser[Path] = PATH_REGEX ^^ (x => Paths.get(x))
   def path_str: Parser[Path] = escapedStringLiteral ^^ (x => Paths.get(x))
+  
+  def c_string: GoalParsers.Parser[String] = PATH_REGEX | escapedStringLiteral
   
   def format: Parser[MappingFormat] = format_csrg | format_ctor | format_exc | format_mcpc | format_mcp | format_pro | format_srg | format_tinyv2 | format_tiny | format_tsrg
   def format_csrg: Parser[MappingFormat] = "csrg" ^^ (_ => FormatCSRG)

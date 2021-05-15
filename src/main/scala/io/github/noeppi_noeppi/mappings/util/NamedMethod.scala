@@ -8,6 +8,7 @@ case class NamedMethod(cls: ClassEntry, name: String, sig: MethodSignature, para
   
   def known(newSide: Side): NamedMethod = if (side == Unknown) forceKnown(newSide) else this
   def forceKnown(newSide: Side): NamedMethod = NamedMethod(cls, name, sig, params, newSide)
+  def renamed(newName: String): NamedMethod = NamedMethod(cls, newName, sig, params, side)
 }
 
 
