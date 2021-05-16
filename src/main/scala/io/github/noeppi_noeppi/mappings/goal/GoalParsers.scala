@@ -16,7 +16,7 @@ object GoalParsers extends CommonParsers {
   def stmt_assign: Parser[(Goal, String)] = ident ~ "=" ~ goal ^^ { case vname ~ _ ~ goal => (goal, vname) }
   def stmt_noassign: Parser[(Goal, String)] = goal ^^ (x => (x, null))
   
-  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_prefix | goal_p_mcpp | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
+  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_prefix | goal_param_regex | goal_p_mcpp | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
   def goal_output: Parser[Goal] = "write" ~> "(" ~> goal ~ "," ~ format ~ "," ~ path <~ ")" ^^ { case goal ~ _ ~ format ~ _ ~ path => new OutputGoal(goal, format, path) }
   def goal_input: Parser[Goal] = "read" ~> "(" ~> format ~ "," ~ path <~ ")" ^^ { case format ~ _ ~ path => new ProviderGoalFile(format, path) }
   def goal_var: Parser[Goal] = ident ^^ (x => new ProviderGoalVar(x))
@@ -43,6 +43,7 @@ object GoalParsers extends CommonParsers {
   def goal_ctor: Parser[Goal] = ("contructor_apply" | "ctor_apply" | "ctor") ~> "(" ~> names ~ "," ~ goal ~ "," ~ goal <~ ")" ^^ { case common ~ _ ~ mappings ~ _ ~ ctors => new ConstructorGoal(common, mappings, ctors) }
   def goal_ftypes: Parser[Goal] = ("field_types_apply" | "ftypes_apply" | "ftypes") ~> "(" ~> names ~ "," ~ goal ~ "," ~ goal <~ ")" ^^ { case common ~ _ ~ mappings ~ _ ~ ftypes => new FieldTypeGoal(common, mappings, ftypes) }
   def goal_prefix: Parser[Goal] = "prefix" ~> "(" ~> names ~ "," ~ c_string ~ "," ~ goal <~ ")" ^^ { case target ~ _ ~ prefix ~ _ ~ goal => new PrefixGoal(target, prefix, goal) }
+  def goal_param_regex: Parser[Goal] = ("param_replace" | "prep") ~> "(" ~> names ~ "," ~ c_string ~ "," ~ c_string ~ "," ~ goal <~ ")" ^^ { case target ~ _ ~ pattern ~ _ ~ replacement ~ _ ~ goal => new RegexParamsGoal(target, pattern, replacement, goal) }
   
   def bool: GoalParsers.Parser[Boolean] = ("true" | "false") ^^ (x => x.toBoolean)
   

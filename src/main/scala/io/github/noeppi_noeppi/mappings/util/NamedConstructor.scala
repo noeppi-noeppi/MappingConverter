@@ -10,6 +10,7 @@ case class NamedConstructor(cls: ClassEntry, name: String, sig: MethodSignature,
 
   def known(newSide: Side): NamedConstructor = if (side == Unknown) forceKnown(newSide) else this
   def forceKnown(newSide: Side): NamedConstructor = NamedConstructor(cls, name, sig, params, newSide, javadoc)
+  def updatedParams(newParams: List[Option[String]]): NamedConstructor = if (newParams == params) this else NamedConstructor(cls, name, sig, newParams, side, javadoc)
 }
 
 object NamedConstructor {

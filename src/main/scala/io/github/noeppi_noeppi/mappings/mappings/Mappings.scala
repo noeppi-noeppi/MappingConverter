@@ -5,6 +5,8 @@ import io.github.noeppi_noeppi.mappings.remapper.ClassRemapper
 import io.github.noeppi_noeppi.mappings.util.{ClassEntry, MethodSignature, NamedConstructor, NamedField, NamedMethod, Side, TypeEntry, Unknown}
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.util.matching.Regex
 
 class Mappings private (
                          private val names: Set[Names],
@@ -278,6 +280,53 @@ object Mappings {
     val uniqueFields = if (target == Mapped) { mappings.uniqueFieldNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3))) } else { mappings.uniqueFieldNames }
     val uniqueMethods = if (target == Mapped) { mappings.uniqueMethodNames.map(entry => (entry._1, (prefix + entry._2._1, entry._2._2, entry._2._3, entry._2._4))) } else { mappings.uniqueMethodNames }
     new Mappings(mappings.names, mappings.classMappings, fieldMappings, methodMappings, mappings.constructorMappings, uniqueFields, uniqueMethods, mappings.uniqueConstructorNames)
+  }
+  
+  def regexParams(target: Names, pattern: Regex, replacement: String, mappings: Mappings): Mappings = {
+    val methodMappings = mappings.methodMappings.map(_.transform(target, entry => entry.updatedParams(replaceParams(entry.params, pattern, replacement))))
+    val constructorMappings = mappings.constructorMappings.map(_.transform(target, entry => entry.updatedParams(replaceParams(entry.params, pattern, replacement))))
+    val uniqueMethods = mappings.uniqueMethodNames.map(entry => (entry._1, (entry._2._1, replaceParams(entry._2._2, pattern, replacement), entry._2._3, entry._2._4)))
+    val uniqueConstructors = mappings.uniqueConstructorNames.map(entry => (entry._1, (entry._2._1, replaceParams(entry._2._2, pattern, replacement), entry._2._3, entry._2._4)))
+    new Mappings(mappings.names, mappings.classMappings, mappings.fieldMappings, methodMappings, constructorMappings, mappings.uniqueFieldNames, uniqueMethods, uniqueConstructors)
+  }
+  
+  private def replaceParams(params: List[Option[String]], pattern: Regex, replacement: String): List[Option[String]] = {
+    val usedNames = mutable.Set.from(params.flatten)
+    val newParams = ListBuffer.from(params)
+    for ((elemOption, idx) <- params.zipWithIndex if elemOption.isDefined; elem = elemOption.get) {
+      val newName = replace(elem, pattern, replacement)
+      if (!usedNames.contains(newName)) {
+        newParams(idx) = Some(newName)
+        usedNames.add(newName)
+      }
+    }
+    newParams.toList
+  }
+  
+  private def replaceParams(params: Map[Int, String], pattern: Regex, replacement: String): Map[Int, String] = {
+    val usedNames = mutable.Set.from(params.values)
+    val newParams = mutable.Map.from(params)
+    for ((idx, elem) <- params) {
+      val newName = replace(elem, pattern, replacement)
+      if (!usedNames.contains(newName)) {
+        newParams.put(idx, newName)
+        usedNames.add(newName)
+      }
+    }
+    newParams.toMap
+  }
+  
+  private def replace(name: String, pattern: Regex, replacement: String): String = {
+    name match {
+      case pattern(groups @ _*) =>
+        var newName = replacement
+        for ((elem, idx) <- groups.zipWithIndex.reverse) {
+          newName = newName.replace("#" + (idx + 1), elem)
+        }
+        newName = newName.replace("##", "#")
+        newName
+      case _ => name
+    }
   }
   
   private def applyFieldType(from: Names, ftypes: Mappings, m: Mapping[NamedField], remappers: (Names, Names) => ClassRemapper): Mapping[NamedField] = {

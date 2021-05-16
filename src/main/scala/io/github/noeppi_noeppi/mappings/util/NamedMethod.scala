@@ -8,7 +8,8 @@ case class NamedMethod(cls: ClassEntry, name: String, sig: MethodSignature, para
   
   def known(newSide: Side): NamedMethod = if (side == Unknown) forceKnown(newSide) else this
   def forceKnown(newSide: Side): NamedMethod = NamedMethod(cls, name, sig, params, newSide, javadoc)
-  def renamed(newName: String): NamedMethod = NamedMethod(cls, newName, sig, params, side, javadoc)
+  def renamed(newName: String): NamedMethod = if (name == newName) this else NamedMethod(cls, newName, sig, params, side, javadoc)
+  def updatedParams(newParams: List[Option[String]]): NamedMethod = if (newParams == params) this else NamedMethod(cls, name, sig, newParams, side, javadoc)
 }
 
 

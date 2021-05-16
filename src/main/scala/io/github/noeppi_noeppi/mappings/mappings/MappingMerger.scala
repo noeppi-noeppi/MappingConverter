@@ -78,10 +78,12 @@ object MappingMerger {
         val oldElem = map(entry._1)
         val newElem = entry._2
         val newSide = Side.merge(oldElem._3, newElem._3)
-        // oldElem params will override newElem params
+        // oldElem params will override newElem params but only if there are no duplicates
         var newMap = newElem._2
         for (entry <- oldElem._2) {
-          newMap = newMap.updated(entry._1, entry._2)
+          if (!newMap.exists(e => e._2 == entry._2)) {
+            newMap = newMap.updated(entry._1, entry._2)
+          }
         }
         val newDoc = if (oldElem._4.isEmpty && newElem._4.nonEmpty) { newElem._4 } else { oldElem._4 }
         map.put(entry._1, (oldElem._1, newMap, newSide, newDoc))

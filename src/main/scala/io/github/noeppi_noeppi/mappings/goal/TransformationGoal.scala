@@ -55,3 +55,7 @@ class FieldTypeGoal(from: Names, mappings: Goal, ftypes: Goal) extends Goal {
 class PrefixGoal(target: Names, prefix: String, mappings: Goal) extends Goal {
   override def perform(env: MappingEnv): Mappings = Mappings.prefix(target, prefix, mappings.perform(env))
 }
+
+class RegexParamsGoal(target: Names, pattern: String, replacement: String, mappings: Goal) extends Goal {
+  override def perform(env: MappingEnv): Mappings = Mappings.regexParams(target, pattern.r, replacement, mappings.perform(env))
+}

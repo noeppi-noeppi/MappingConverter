@@ -38,7 +38,8 @@ case class ClassEntry(name: String, pkg: List[String], side: Side) extends TypeE
   override def remap(remapper: ClassRemapper): ClassEntry = remapper.remap(this)
   def internalString: String = pkg.map(_ + "/").mkString + name
   def plainString: String = pkg.map(_ + ".").mkString + name
-  
+  def renamed(newName: String): ClassEntry = if (name == newName) this else ClassEntry(name, pkg)
+
   def known(newSide: Side): ClassEntry = if (side == Unknown) forceKnown(newSide) else this
   def forceKnown(newSide: Side): ClassEntry = ClassEntry(name, pkg, newSide)
 }
