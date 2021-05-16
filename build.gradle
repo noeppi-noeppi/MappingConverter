@@ -14,6 +14,7 @@ dependencies {
     compile ('org.scala-lang.modules:scala-parser-combinators_2.13.0-RC3') { version { strictly '[1.1.2,)';  prefer '1.1.2' } }
     compile ('org.apache.commons:commons-text') { version { strictly '[1.9,)';  prefer '1.9' } }
     compile ('com.google.code.gson:gson') { version { strictly '[2.8.6,)';  prefer '2.8.6' } }
+    compile ('de.siegmar:fastcsv') { version { strictly '[2.0.0,)';  prefer '2.0.0' } }
 }
 
 application.mainClassName = 'io.github.noeppi_noeppi.mappings.Main'

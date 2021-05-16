@@ -2,7 +2,7 @@ package io.github.noeppi_noeppi.mappings.mappings
 
 import io.github.noeppi_noeppi.mappings.mappings.MappingMerger.{mergeMappingLists, mergeUnique, mergeUniqueParam}
 import io.github.noeppi_noeppi.mappings.remapper.ClassRemapper
-import io.github.noeppi_noeppi.mappings.util.{ClassEntry, MethodSignature, NamedConstructor, NamedField, NamedMethod, Side, TypeEntry, Unknown}
+import io.github.noeppi_noeppi.mappings.util.{ClassEntry, JavaUtil, MethodSignature, NamedConstructor, NamedField, NamedMethod, Side, TypeEntry, Unknown}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -295,7 +295,7 @@ object Mappings {
     val newParams = ListBuffer.from(params)
     for ((elemOption, idx) <- params.zipWithIndex if elemOption.isDefined; elem = elemOption.get) {
       val newName = replace(elem, pattern, replacement)
-      if (!usedNames.contains(newName)) {
+      if (!usedNames.contains(newName) && !JavaUtil.keywords.contains(newName)) {
         newParams(idx) = Some(newName)
         usedNames.add(newName)
       }

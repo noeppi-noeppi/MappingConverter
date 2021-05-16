@@ -1,12 +1,16 @@
 package io.github.noeppi_noeppi.mappings.format
 
+import de.siegmar.fastcsv.reader.NamedCsvReader
+import de.siegmar.fastcsv.reader.NamedCsvReader.NamedCsvReaderBuilder
+import de.siegmar.fastcsv.writer.CsvWriter
+import de.siegmar.fastcsv.writer.CsvWriter.CsvWriterBuilder
 import io.github.noeppi_noeppi.mappings.mappings._
 import io.github.noeppi_noeppi.mappings.util.{Side, Unknown}
-import org.apache.commons.text.StringEscapeUtils
 
 import java.io._
 import java.util.zip.{ZipEntry, ZipInputStream, ZipOutputStream}
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 object FormatMCP extends MappingFormat {
   
@@ -60,49 +64,38 @@ object FormatMCP extends MappingFormat {
   }
 
   private def parseFM(in: BufferedReader, fname: String): Map[String, (String, Side, String)] = {
-    // Skip header
-    in.readLine()
-    val lines = in.lines().toArray.map(_.toString)
-    val map = mutable.Map[String, (String, Side, String)]()
-    for (line <- lines if line.trim.nonEmpty) {
-      val tokens = line.split(",")
-      if (tokens.length < 2) throw new IllegalStateException("Invalid mapping in '" + fname + "': '" + line + "'")
-      map.put(tokens(0).trim, (tokens(1).trim, if  (tokens.length >= 3) { Side.byMcpIdx(tokens(2).trim) } else { Unknown }, if (tokens.length >= 4) unquote(tokens.slice(3, tokens.length).mkString(",")) else ""))
-    }
-    map.toMap
+    NamedCsvReader.builder().build(in).asScala.map(line => (
+      line.getField("searge"),
+      (
+        line.getField("name"),
+        if (line.getFields.containsKey("side")) { Side.byMcpIdx(line.getField("side")) } else { Unknown },
+        if (line.getFields.containsKey("desc")) { line.getField("desc") } else { "" }
+      )
+    )).toMap
   }
   
   private def parseParams(in: BufferedReader): (Map[(Int, Int), String], Map[(Int, Int), (String, Side)]) = {
-    // Skip header
-    in.readLine()
-    val lines = in.lines().toArray.map(_.toString)
-    val map = mutable.Map[(Int, Int), String]()
-    val cmap = mutable.Map[(Int, Int), (String, Side)]()
-    var hasInvalid = false
-    for (line <- lines if line.trim.nonEmpty) {
-      val tokens = line.split(",").map(_.trim)
-      if (tokens.length < 2) throw new IllegalStateException("Invalid mapping in 'params.csv': '" + line + "'")
-      val id = if (tokens(0).startsWith("p_i") && tokens(0).endsWith("_")) {
-        parseId(tokens(0).substring(3, tokens(0).length - 1))
-      } else if (tokens(0).startsWith("p_") && tokens(0).endsWith("_")) {
-        parseId(tokens(0).substring(2, tokens(0).length - 1))
+    val built = NamedCsvReader.builder().build(in).asScala.flatMap(line => {
+      val srg = line.getField("param")
+      val id = if (srg.startsWith("p_i") && srg.endsWith("_")) {
+        parseId(srg.substring(3, srg.length - 1))
+      } else if (srg.startsWith("p_") && srg.endsWith("_")) {
+        parseId(srg.substring(2, srg.length - 1))
       } else {
         null
       }
       if (id == null) {
-        if (!hasInvalid) {
-          println("Parameter in 'params.csv' is not in SRG style. Skipping: '" + tokens(0) + "'")
-          hasInvalid = true
-        }
+        println("Parameter in 'params.csv' is not in SRG style. Skipping: '" + srg + "'")
+        None
       } else {
-        if (tokens(0).startsWith("p_i")) {
-          cmap.put(id, (tokens(1), if (tokens.length >= 3) Side.byMcpIdx(tokens(2)) else Unknown))
+        if (srg.startsWith("p_i")) {
+          Some(Right(id, (line.getField("name"), if (line.getFields.containsKey("side")) { Side.byMcpIdx(line.getField("side")) } else { Unknown })))
         } else {
-          map.put(id, tokens(1))
+          Some(Left(id, line.getField("name")))
         }
       }
-    }
-    (map.toMap, cmap.toMap)
+    }).partitionMap(x => x)
+    (built._1.toMap, built._2.toMap)
   }
   
   private def parseId(id: String): (Int, Int) = {
@@ -194,49 +187,48 @@ object FormatMCP extends MappingFormat {
     // We must close the zip stream to write ZIP END header but we can't close the given stream.
     val bout = new ByteArrayOutputStream()
     val zout = new ZipOutputStream(bout)
+    
     zout.putNextEntry(new ZipEntry("fields.csv"))
-    val fw = new BufferedWriter(new OutputStreamWriter(zout))
-    fw.write("searge,name,side,desc\n")
+    val fo = new ByteArrayOutputStream()
+    val fw = new BufferedWriter(new OutputStreamWriter(fo))
+    val fcsv = CsvWriter.builder().build(fw)
+    fcsv.writeRow("searge", "name", "side", "desc")
     for (entry <- fields) {
-      fw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "," + quote(entry._2._3) + "\n")
+      fcsv.writeRow(entry._1,  entry._2._1, entry._2._2.mcpIdx.toString, entry._2._3)
     }
-    fw.flush()
+    fcsv.close()
+    fw.close()
+    zout.write(fo.toByteArray)
     zout.closeEntry()
+
     zout.putNextEntry(new ZipEntry("methods.csv"))
-    val mw = new BufferedWriter(new OutputStreamWriter(zout))
-    mw.write("searge,name,side,desc\n")
+    val mo = new ByteArrayOutputStream()
+    val mw = new BufferedWriter(new OutputStreamWriter(mo))
+    val mcsv = CsvWriter.builder().build(mw)
+    mcsv.writeRow("searge", "name", "side", "desc")
     for (entry <- methods) {
-      mw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "," + quote(entry._2._3) + "\n")
+      mcsv.writeRow(entry._1,  entry._2._1, entry._2._2.mcpIdx.toString, entry._2._3)
     }
-    mw.flush()
+    mcsv.close()
+    mw.close()
+    zout.write(mo.toByteArray)
     zout.closeEntry()
+    
     if (!skipParam) {
       zout.putNextEntry(new ZipEntry("params.csv"))
-      val pw = new BufferedWriter(new OutputStreamWriter(zout))
-      pw.write("param,name,side\n")
+      val po = new ByteArrayOutputStream()
+      val pw = new BufferedWriter(new OutputStreamWriter(po))
+      val pcsv = CsvWriter.builder().build(pw)
+      pcsv.writeRow("param", "name", "side")
       for (entry <- params) {
-        pw.write(entry._1 + "," + entry._2._1 + "," + entry._2._2.mcpIdx.toString + "\n")
+        pcsv.writeRow(entry._1,  entry._2._1, entry._2._2.mcpIdx.toString)
       }
-      pw.flush()
+      pcsv.close()
+      pw.close()
+      zout.write(po.toByteArray)
       zout.closeEntry()
     }
     zout.close()
     out.write(bout.toByteArray)
-  }
-  
-  private def unquote(str: String): String = {
-    if ((str.startsWith("\"") && str.startsWith("\"")) || (str.startsWith("\'") && str.startsWith("\'"))) {
-      StringEscapeUtils.unescapeJava(str.substring(1, str.length - 1))
-    } else {
-      StringEscapeUtils.unescapeJava(str)
-    }
-  }
-  
-  private def quote(str: String): String = {
-    if (str.nonEmpty) {
-      "\"" + StringEscapeUtils.escapeJava(str) + "\""
-    } else {
-      ""
-    }
   }
 }
