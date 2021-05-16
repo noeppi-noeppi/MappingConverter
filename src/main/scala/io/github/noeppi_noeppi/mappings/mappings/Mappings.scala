@@ -308,7 +308,7 @@ object Mappings {
     val newParams = mutable.Map.from(params)
     for ((idx, elem) <- params) {
       val newName = replace(elem, pattern, replacement)
-      if (!usedNames.contains(newName)) {
+      if (!usedNames.contains(newName) && !JavaUtil.keywords.contains(newName)) {
         newParams.put(idx, newName)
         usedNames.add(newName)
       }
