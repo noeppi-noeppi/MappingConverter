@@ -2,9 +2,9 @@ package io.github.noeppi_noeppi.mappings.goal
 
 import io.github.noeppi_noeppi.mappings.format.{FormatCSRG, FormatCTOR, FormatEXC, FormatMCP, FormatMCPC, FormatPRO, FormatSRG, FormatTINY, FormatTINYv2, FormatTSRG, MappingFormat}
 import io.github.noeppi_noeppi.mappings.mappings.{Mapped, Names, Obfuscated, SRG}
-import io.github.noeppi_noeppi.mappings.provider.{IntermediaryMappingProvider, MCPMappingProvider, MCPPMappingProvider, OfficialMappingProvider, SRGMappingProvider, YarnMappingProvider}
+import io.github.noeppi_noeppi.mappings.provider.{IntermediaryMappingProvider, MCPMappingProvider, MCPPMappingProvider, MCPUMappingProvider, OfficialMappingProvider, SRGMappingProvider, YarnMappingProvider}
 import io.github.noeppi_noeppi.mappings.util.{Client, CommonParsers, Server, Side}
-import io.github.noeppi_noeppi.mappings.version.{McpVersion, MinecraftPreRelease, MinecraftRelease, MinecraftReleaseCandidate, MinecraftSnapshot, MinecraftVersion, YarnVersion}
+import io.github.noeppi_noeppi.mappings.version.{McBuildVersion, McpVersion, MinecraftPreRelease, MinecraftRelease, MinecraftReleaseCandidate, MinecraftSnapshot, MinecraftVersion, YarnVersion}
 
 import java.nio.file.{Path, Paths}
 
@@ -16,8 +16,9 @@ object GoalParsers extends CommonParsers {
   def stmt_assign: Parser[(Goal, String)] = ident ~ "=" ~ goal ^^ { case vname ~ _ ~ goal => (goal, vname) }
   def stmt_noassign: Parser[(Goal, String)] = goal ^^ (x => (x, null))
   
-  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_prefix | goal_param_regex | goal_p_mcpp | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
+  def goal: Parser[Goal] = goal_merge | goal_safe_merge | goal_transform | goal_reverse | goal_mreverse | goal_apply | goal_partial | goal_obfmap | goal_sided | goal_force | goal_filter | goal_ctor | goal_ftypes | goal_prefix | goal_param_regex | goal_p_mcpp | goal_p_mcpu | goal_p_mcp | goal_p_yarn | goal_p_srg | goal_p_intermediary | goal_p_official | goal_output | goal_diff_output | goal_input | goal_pvar | goal_var | failure("Goal expected")
   def goal_output: Parser[Goal] = "write" ~> "(" ~> goal ~ "," ~ format ~ "," ~ path <~ ")" ^^ { case goal ~ _ ~ format ~ _ ~ path => new OutputGoal(goal, format, path) }
+  def goal_diff_output: Parser[Goal] = "diff" ~> "(" ~> names ~ "," ~ goal ~ "," ~ goal ~ "," ~ path <~ ")" ^^ { case names ~ _ ~ from ~ _ ~ to ~ _ ~ path => new DiffOutputGoal(names, from, to, path) }
   def goal_input: Parser[Goal] = "read" ~> "(" ~> format ~ "," ~ path <~ ")" ^^ { case format ~ _ ~ path => new ProviderGoalFile(format, path) }
   def goal_var: Parser[Goal] = ident ^^ (x => new ProviderGoalVar(x))
   def goal_pvar: Parser[Goal] = "%" ~> wholeNumber ^^ (x => new ProviderGoalVar("%" + x))
@@ -27,6 +28,7 @@ object GoalParsers extends CommonParsers {
   def goal_p_intermediary: Parser[Goal] = "intermediary" ~> "(" ~> mc_version <~ ")" ^^ (x => new ProviderGoalSpecial(IntermediaryMappingProvider, x))
   def goal_p_mcp: Parser[Goal] = "mcp" ~> "(" ~> mcp_version <~ ")" ^^ (x => new ProviderGoalSpecial(MCPMappingProvider, x))
   def goal_p_mcpp: Parser[Goal] = "mcpp" ~> "(" ~> mcp_version <~ ")" ^^ (x => new ProviderGoalSpecial(MCPPMappingProvider, x))
+  def goal_p_mcpu: Parser[Goal] = "mcpu" ~> "(" ~> mc_build_version <~ ")" ^^ (x => new ProviderGoalSpecial(MCPUMappingProvider, x))
   def goal_p_yarn: Parser[Goal] = "yarn" ~> "(" ~> yarn_version <~ ")" ^^ (x => new ProviderGoalSpecial(YarnMappingProvider, x))
 
   def goal_merge: Parser[Goal] = "merge" ~> "(" ~> names ~ "," ~ rep1sep(goal, ",") <~ ")" ^^ { case toward ~ _ ~ goals => new MergeGoal(toward, goals: _*) }
@@ -88,4 +90,5 @@ object GoalParsers extends CommonParsers {
   
   def mcp_version: Parser[McpVersion] = ("stable" | "snapshot") ~ "_" ~ wholeNumber ~ "-" ~ mc_version ^^ { case channel ~ _ ~ version ~ _ ~ mc => McpVersion(channel, version.toInt, mc) }
   def yarn_version: Parser[YarnVersion] = mc_version ~ "+build." ~ wholeNumber ^^ { case mc ~ _ ~ build => YarnVersion(mc, build.toInt) }
+  def mc_build_version: Parser[McBuildVersion] = mc_version ~ "-" ~ wholeNumber ^^ { case mc ~ _ ~ build => McBuildVersion(mc, build.toInt) }
 }

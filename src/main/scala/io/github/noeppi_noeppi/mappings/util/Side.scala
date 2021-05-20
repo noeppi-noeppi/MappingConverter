@@ -1,14 +1,14 @@
 package io.github.noeppi_noeppi.mappings.util
 
-sealed abstract class Side(val client: Boolean, val server: Boolean, val mcpIdx: Int) {
+sealed abstract class Side(val name: String, val client: Boolean, val server: Boolean, val mcpIdx: Int) {
   
   def test(requiresClient: Boolean, requiresServer: Boolean): Boolean = (!requiresClient || client) && (!requiresServer || server)
 }
 
-object Unknown extends Side(true, true, 2)
-object Client extends Side(true, false, 0)
-object Server extends Side(false, true, 1)
-object Both extends Side(true, true, 2)
+object Unknown extends Side("unknown", true, true, 2)
+object Client extends Side("client", true, false, 0)
+object Server extends Side("dedicated_server", false, true, 1)
+object Both extends Side("both", true, true, 2)
 
 object Side {
   
